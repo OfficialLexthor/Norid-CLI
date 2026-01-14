@@ -25,6 +25,7 @@ Slå opp .no-domener uten autentisering.
 | **Whois** | Tradisjonelt domeneoppslag |
 | **Entiteter** | Slå opp registrarer og kontaktpersoner |
 | **Navneservere** | Slå opp og søk etter navneservere |
+| **GUI** | Grafisk grensesnitt med moderne utseende |
 
 > **Note**  
 > Ingen autentisering kreves. Alle tjenester er offentlig tilgjengelige.
@@ -63,7 +64,27 @@ norid.bat
 > **Note**  
 > Første gang opprettes virtuelt miljø og avhengigheter installeres automatisk.
 
-### Interaktivt menysystem
+### GUI-versjon
+
+Start det grafiske grensesnittet:
+
+```bash
+# Via Python
+python norid_gui.py
+
+# Eller via pip-installasjon
+norid-gui
+```
+
+![Norid GUI](https://img.shields.io/badge/GUI-CustomTkinter-blue)
+
+GUI-versjonen har:
+- Moderne mørkt tema
+- Faner for alle funksjoner
+- Bytt mellom test- og produksjonsmiljø
+- JSON-visning for alle oppslag
+
+### Interaktivt menysystem (CLI)
 
 Når du starter programmet får du en brukervennlig meny:
 
@@ -130,6 +151,7 @@ pip install -r requirements.txt
 
 - Python 3.9 eller nyere
 - Internettilgang
+- Tkinter (for GUI-versjonen)
 
 ## Bruk
 
