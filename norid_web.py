@@ -611,6 +611,10 @@ HTML_TEMPLATE = '''
                 flex-direction: column;
             }
 
+            #overview-grid {
+                grid-template-columns: 1fr !important;
+            }
+
             .search-btn {
                 width: 100%;
             }
@@ -634,7 +638,8 @@ HTML_TEMPLATE = '''
 
         <main>
             <div class="tabs">
-                <button class="tab active" data-tab="das">DAS</button>
+                <button class="tab active" data-tab="overview">Oversikt</button>
+                <button class="tab" data-tab="das">DAS</button>
                 <button class="tab" data-tab="domain">Domene</button>
                 <button class="tab" data-tab="entity">Entitet</button>
                 <button class="tab" data-tab="nameserver">Navneserver</button>
@@ -642,8 +647,46 @@ HTML_TEMPLATE = '''
                 <button class="tab" data-tab="dns">DNS</button>
             </div>
 
+            <!-- Overview Tab -->
+            <div id="overview" class="tab-content active">
+                <div class="card">
+                    <h2 class="card-title">Domeneoversikt</h2>
+                    <p class="card-desc">Vis all informasjon om et .no-domene på ett sted</p>
+                    
+                    <form class="search-form" onsubmit="runOverview(event)">
+                        <input type="text" class="search-input" id="overview-input" 
+                               placeholder="domenenavn.no" autocomplete="off">
+                        <button type="submit" class="search-btn" id="overview-btn">Slå opp</button>
+                    </form>
+                </div>
+                
+                <div id="overview-result" style="margin-top: 1.5rem;">
+                    <!-- Status -->
+                    <div id="overview-status" class="das-result" style="display: none; margin-bottom: 1rem;">
+                        <div class="icon"></div>
+                        <div class="domain"></div>
+                        <div class="status"></div>
+                    </div>
+                    
+                    <!-- Grid for resultater -->
+                    <div id="overview-grid" style="display: none; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <!-- RDAP Info -->
+                        <div class="card" style="margin: 0;">
+                            <h3 style="font-size: 1rem; font-weight: 600; margin-bottom: 0.75rem; color: #60A5FA;">Domeneinfo (RDAP)</h3>
+                            <div id="overview-rdap" class="result-box" style="min-height: 150px; font-size: 0.8rem;"></div>
+                        </div>
+                        
+                        <!-- DNS Records -->
+                        <div class="card" style="margin: 0;">
+                            <h3 style="font-size: 1rem; font-weight: 600; margin-bottom: 0.75rem; color: #60A5FA;">DNS Records</h3>
+                            <div id="overview-dns" class="result-box" style="min-height: 150px; font-size: 0.8rem;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- DAS Tab -->
-            <div id="das" class="tab-content active">
+            <div id="das" class="tab-content">
                 <div class="card">
                     <h2 class="card-title">Domain Availability Service</h2>
                     <p class="card-desc">Sjekk om et .no-domene er ledig for registrering</p>
@@ -836,6 +879,136 @@ HTML_TEMPLATE = '''
             document.querySelectorAll('.env-btn').forEach(btn => {
                 btn.classList.toggle('active', btn.dataset.env === env);
             });
+        }
+
+        // Overview - viser alt på én gang
+        async function runOverview(e) {
+            e.preventDefault();
+            let domain = document.getElementById('overview-input').value.trim();
+            if (!domain) return;
+            
+            if (!domain.endsWith('.no')) domain += '.no';
+            document.getElementById('overview-input').value = domain;
+            
+            const btn = document.getElementById('overview-btn');
+            const statusCard = document.getElementById('overview-status');
+            const grid = document.getElementById('overview-grid');
+            const rdapBox = document.getElementById('overview-rdap');
+            const dnsBox = document.getElementById('overview-dns');
+            
+            btn.disabled = true;
+            btn.textContent = '...';
+            
+            // Vis loading
+            statusCard.style.display = 'block';
+            statusCard.className = 'das-result';
+            statusCard.querySelector('.icon').textContent = '...';
+            statusCard.querySelector('.domain').textContent = domain;
+            statusCard.querySelector('.status').textContent = 'Henter informasjon...';
+            
+            grid.style.display = 'grid';
+            rdapBox.innerHTML = '<div style="color: #94A3B8; text-align: center; padding: 2rem;">Laster...</div>';
+            dnsBox.innerHTML = '<div style="color: #94A3B8; text-align: center; padding: 2rem;">Laster...</div>';
+            
+            try {
+                // Kjør alle oppslag parallelt
+                const [dasData, domainData, dnsData] = await Promise.all([
+                    apiCall('das', { domain }),
+                    apiCall('domain', { domain }),
+                    apiCall('dns', { domain })
+                ]);
+                
+                // Vis DAS-status
+                if (dasData.success) {
+                    const text = String(dasData.data).toLowerCase();
+                    const isAvailable = (text.includes('available') && !text.includes('not available')) 
+                                     || text.includes('not registered');
+                    
+                    if (isAvailable) {
+                        statusCard.className = 'das-result available';
+                        statusCard.querySelector('.icon').textContent = '✓';
+                        statusCard.querySelector('.status').textContent = 'LEDIG for registrering';
+                    } else {
+                        statusCard.className = 'das-result taken';
+                        statusCard.querySelector('.icon').textContent = '✗';
+                        statusCard.querySelector('.status').textContent = 'REGISTRERT';
+                    }
+                } else {
+                    statusCard.className = 'das-result taken';
+                    statusCard.querySelector('.icon').textContent = '?';
+                    statusCard.querySelector('.status').textContent = 'Kunne ikke sjekke status';
+                }
+                
+                // Vis RDAP-data
+                if (domainData.success) {
+                    rdapBox.textContent = formatDomainCompact(domainData.data);
+                } else {
+                    rdapBox.innerHTML = `<div style="color: #F59E0B;">${domainData.error || 'Ingen data'}</div>`;
+                }
+                
+                // Vis DNS-data
+                if (dnsData.success) {
+                    dnsBox.textContent = formatDnsCompact(dnsData.data);
+                } else {
+                    dnsBox.innerHTML = `<div style="color: #F59E0B;">${dnsData.error || 'Ingen data'}</div>`;
+                }
+                
+            } catch (err) {
+                statusCard.className = 'das-result taken';
+                statusCard.querySelector('.icon').textContent = '!';
+                statusCard.querySelector('.status').textContent = err.message;
+            }
+            
+            btn.disabled = false;
+            btn.textContent = 'Slå opp';
+        }
+
+        function formatDomainCompact(data) {
+            let lines = [];
+            const name = data.ldhName || data.unicodeName || '';
+            
+            (data.events || []).forEach(e => {
+                const date = e.eventDate ? e.eventDate.slice(0, 10) : '';
+                if (e.eventAction === 'registration') lines.push(`Registrert:  ${date}`);
+                if (e.eventAction === 'last changed') lines.push(`Sist endret: ${date}`);
+            });
+            
+            if (data.status) {
+                lines.push(`Status:      ${data.status.join(', ')}`);
+            }
+            
+            if (data.nameservers && data.nameservers.length) {
+                lines.push('');
+                lines.push('Navneservere:');
+                data.nameservers.forEach(ns => {
+                    lines.push(`  • ${ns.ldhName || ''}`);
+                });
+            }
+            
+            (data.entities || []).forEach(entity => {
+                if (entity.roles && entity.roles.includes('registrar')) {
+                    lines.push('');
+                    lines.push(`Registrar: ${entity.handle || ''}`);
+                    if (entity.vcardArray && entity.vcardArray[1]) {
+                        entity.vcardArray[1].forEach(item => {
+                            if (item[0] === 'fn') lines.push(`  ${item[3]}`);
+                        });
+                    }
+                }
+            });
+            
+            return lines.join('\\n');
+        }
+
+        function formatDnsCompact(data) {
+            let lines = [];
+            for (const [rtype, values] of Object.entries(data)) {
+                for (const value of values) {
+                    const shortValue = value.length > 40 ? value.slice(0, 37) + '...' : value;
+                    lines.push(`${rtype.padEnd(6)} ${shortValue}`);
+                }
+            }
+            return lines.join('\\n');
         }
 
         // API calls
