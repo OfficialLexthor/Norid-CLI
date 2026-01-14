@@ -26,6 +26,7 @@ Slå opp .no-domener uten autentisering.
 | **Entiteter** | Slå opp registrarer og kontaktpersoner |
 | **Navneservere** | Slå opp og søk etter navneservere |
 | **GUI** | Grafisk grensesnitt med moderne utseende |
+| **Web GUI** | Webbasert grensesnitt (Flask) |
 
 > **Note**  
 > Ingen autentisering kreves. Alle tjenester er offentlig tilgjengelige.
@@ -83,6 +84,29 @@ GUI-versjonen har:
 - Faner for alle funksjoner
 - Bytt mellom test- og produksjonsmiljø
 - JSON-visning for alle oppslag
+
+### Web GUI
+
+Start webgrensesnittet:
+
+```bash
+# Via Python
+python norid_web.py
+
+# Eller via pip-installasjon
+norid-web
+```
+
+Åpne deretter http://localhost:5000 i nettleseren.
+
+![Norid Web](https://img.shields.io/badge/Web-Flask-green)
+
+Web GUI har:
+- Mørkt utviklervennlig tema
+- Alle 5 tjenester i faner (DAS, Domene, Entitet, Navneserver, Whois)
+- Bytt mellom test- og produksjonsmiljø
+- Responsivt design for mobil og desktop
+- JSON-toggle for alle oppslag
 
 ### Interaktivt menysystem (CLI)
 

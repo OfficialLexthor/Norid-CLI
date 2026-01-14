@@ -13,18 +13,20 @@ setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/OfficialLexthor/Norid-CLI",
-    py_modules=["norid_cli", "norid_gui"],
+    py_modules=["norid_cli", "norid_gui", "norid_web"],
     python_requires=">=3.9",
     install_requires=[
         "click>=8.1.0",
         "requests>=2.31.0",
         "tabulate>=0.9.0",
         "customtkinter>=5.2.0",
+        "flask>=3.0.0",
     ],
     entry_points={
         "console_scripts": [
             "norid=norid_cli:cli",
             "norid-gui=norid_gui:main",
+            "norid-web=norid_web:main",
         ],
     },
     classifiers=[
