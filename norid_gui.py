@@ -18,6 +18,24 @@ from typing import Any, Dict, Optional
 import customtkinter as ctk
 import requests
 
+# ============================================================================
+# FARGEPALETT - Developer Tool / IDE Theme
+# ============================================================================
+COLORS = {
+    "bg_dark": "#0F172A",        # Bakgrunn (slate-900)
+    "bg_card": "#1E293B",        # Kort/panel bakgrunn (slate-800)
+    "bg_input": "#334155",       # Input bakgrunn (slate-700)
+    "primary": "#3B82F6",        # Primær blå
+    "primary_hover": "#2563EB",  # Primær hover
+    "success": "#22C55E",        # Grønn - ledig
+    "error": "#EF4444",          # Rød - opptatt
+    "warning": "#F59E0B",        # Oransje - advarsel
+    "text": "#F1F5F9",           # Hovedtekst (slate-100)
+    "text_muted": "#94A3B8",     # Dempet tekst (slate-400)
+    "border": "#475569",         # Kantlinje (slate-600)
+    "accent": "#60A5FA",         # Aksent lyseblå
+}
+
 # Tema og utseende
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
@@ -108,15 +126,146 @@ class NoridClient:
         return self._socket_request(self.das_host, DAS_PORT, domain)
 
 
+class LoadingIndicator(ctk.CTkFrame):
+    """Animert loading-indikator"""
+    
+    def __init__(self, parent, text="Laster...", **kwargs):
+        super().__init__(parent, fg_color="transparent", **kwargs)
+        
+        self.label = ctk.CTkLabel(
+            self,
+            text=text,
+            font=ctk.CTkFont(size=14),
+            text_color=COLORS["text_muted"]
+        )
+        self.label.pack()
+        
+        self.dots = 0
+        self.base_text = text
+        self.animating = False
+    
+    def start(self, text="Laster"):
+        """Start animasjon"""
+        self.base_text = text
+        self.animating = True
+        self._animate()
+    
+    def stop(self):
+        """Stopp animasjon"""
+        self.animating = False
+    
+    def _animate(self):
+        """Animer prikker"""
+        if not self.animating:
+            return
+        
+        self.dots = (self.dots + 1) % 4
+        dots_text = "." * self.dots
+        self.label.configure(text=f"{self.base_text}{dots_text}")
+        self.after(300, self._animate)
+
+
+class ResultCard(ctk.CTkFrame):
+    """Stilisert resultatkort for DAS-oppslag"""
+    
+    def __init__(self, parent, **kwargs):
+        super().__init__(
+            parent,
+            fg_color=COLORS["bg_card"],
+            corner_radius=16,
+            border_width=1,
+            border_color=COLORS["border"],
+            **kwargs
+        )
+        
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure(0, weight=1)
+        
+        # Innhold
+        self.content_frame = ctk.CTkFrame(self, fg_color="transparent")
+        self.content_frame.grid(row=0, column=0, padx=40, pady=40)
+        
+        # Ikon/symbol
+        self.icon_label = ctk.CTkLabel(
+            self.content_frame,
+            text="",
+            font=ctk.CTkFont(size=48, weight="bold"),
+            text_color=COLORS["text_muted"]
+        )
+        self.icon_label.pack(pady=(0, 10))
+        
+        # Hovedtekst
+        self.main_label = ctk.CTkLabel(
+            self.content_frame,
+            text="Skriv inn et domenenavn",
+            font=ctk.CTkFont(size=22, weight="bold"),
+            text_color=COLORS["text"]
+        )
+        self.main_label.pack(pady=(0, 5))
+        
+        # Undertekst
+        self.sub_label = ctk.CTkLabel(
+            self.content_frame,
+            text="og klikk 'Sjekk' for å se om det er ledig",
+            font=ctk.CTkFont(size=14),
+            text_color=COLORS["text_muted"]
+        )
+        self.sub_label.pack()
+    
+    def show_loading(self, domain: str):
+        """Vis loading-tilstand"""
+        self.configure(border_color=COLORS["primary"])
+        self.icon_label.configure(text="...", text_color=COLORS["primary"])
+        self.main_label.configure(text=f"Sjekker {domain}", text_color=COLORS["text"])
+        self.sub_label.configure(text="Kobler til Norid...")
+    
+    def show_available(self, domain: str):
+        """Vis ledig-tilstand"""
+        self.configure(border_color=COLORS["success"])
+        self.icon_label.configure(text="[OK]", text_color=COLORS["success"])
+        self.main_label.configure(text=domain, text_color=COLORS["success"])
+        self.sub_label.configure(text="Dette domenet er LEDIG for registrering")
+    
+    def show_taken(self, domain: str):
+        """Vis opptatt-tilstand"""
+        self.configure(border_color=COLORS["error"])
+        self.icon_label.configure(text="[X]", text_color=COLORS["error"])
+        self.main_label.configure(text=domain, text_color=COLORS["error"])
+        self.sub_label.configure(text="Dette domenet er allerede REGISTRERT")
+    
+    def show_invalid(self, domain: str):
+        """Vis ugyldig-tilstand"""
+        self.configure(border_color=COLORS["warning"])
+        self.icon_label.configure(text="[!]", text_color=COLORS["warning"])
+        self.main_label.configure(text=domain, text_color=COLORS["warning"])
+        self.sub_label.configure(text="Ugyldig domenenavn")
+    
+    def show_error(self, message: str):
+        """Vis feil-tilstand"""
+        self.configure(border_color=COLORS["error"])
+        self.icon_label.configure(text="[!]", text_color=COLORS["error"])
+        self.main_label.configure(text="Feil", text_color=COLORS["error"])
+        self.sub_label.configure(text=message)
+    
+    def reset(self):
+        """Tilbakestill til standardtilstand"""
+        self.configure(border_color=COLORS["border"])
+        self.icon_label.configure(text="", text_color=COLORS["text_muted"])
+        self.main_label.configure(text="Skriv inn et domenenavn", text_color=COLORS["text"])
+        self.sub_label.configure(text="og klikk 'Sjekk' for å se om det er ledig")
+
+
 class NoridGUI(ctk.CTk):
     """Hovedvindu for Norid GUI"""
 
     def __init__(self):
         super().__init__()
 
-        self.title("Norid CLI - Domeneoppslag for .no")
-        self.geometry("900x700")
-        self.minsize(800, 600)
+        # Vinduinnstillinger
+        self.title("Norid - Domeneoppslag for .no")
+        self.geometry("950x750")
+        self.minsize(850, 650)
+        self.configure(fg_color=COLORS["bg_dark"])
 
         # Klient
         self.client = NoridClient(use_test=False)
@@ -125,65 +274,93 @@ class NoridGUI(ctk.CTk):
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(1, weight=1)
 
-        # Header
+        # Bygg UI
         self._create_header()
-
-        # Tabs
         self._create_tabs()
-
-        # Statuslinje
         self._create_statusbar()
 
     def _create_header(self):
         """Opprett header med logo og innstillinger"""
         header_frame = ctk.CTkFrame(self, fg_color="transparent")
-        header_frame.grid(row=0, column=0, sticky="ew", padx=20, pady=(20, 10))
+        header_frame.grid(row=0, column=0, sticky="ew", padx=24, pady=(24, 12))
         header_frame.grid_columnconfigure(1, weight=1)
 
         # Logo/tittel
+        title_frame = ctk.CTkFrame(header_frame, fg_color="transparent")
+        title_frame.grid(row=0, column=0, sticky="w")
+        
         title_label = ctk.CTkLabel(
-            header_frame,
-            text="Norid CLI",
-            font=ctk.CTkFont(size=28, weight="bold")
+            title_frame,
+            text="Norid",
+            font=ctk.CTkFont(size=32, weight="bold"),
+            text_color=COLORS["text"]
         )
-        title_label.grid(row=0, column=0, sticky="w")
+        title_label.pack(side="left")
+        
+        # Versjon/tag
+        version_label = ctk.CTkLabel(
+            title_frame,
+            text="  CLI",
+            font=ctk.CTkFont(size=16),
+            text_color=COLORS["accent"]
+        )
+        version_label.pack(side="left", pady=(8, 0))
 
         subtitle_label = ctk.CTkLabel(
             header_frame,
             text="Slå opp .no-domener uten autentisering",
-            font=ctk.CTkFont(size=14),
-            text_color="gray"
+            font=ctk.CTkFont(size=13),
+            text_color=COLORS["text_muted"]
         )
-        subtitle_label.grid(row=1, column=0, sticky="w")
+        subtitle_label.grid(row=1, column=0, sticky="w", pady=(2, 0))
 
         # Miljøvalg
         env_frame = ctk.CTkFrame(header_frame, fg_color="transparent")
         env_frame.grid(row=0, column=2, rowspan=2, sticky="e", padx=10)
 
-        env_label = ctk.CTkLabel(env_frame, text="Miljø:", font=ctk.CTkFont(size=12))
-        env_label.pack(side="left", padx=(0, 10))
+        env_label = ctk.CTkLabel(
+            env_frame,
+            text="Miljø",
+            font=ctk.CTkFont(size=12),
+            text_color=COLORS["text_muted"]
+        )
+        env_label.pack(side="left", padx=(0, 12))
 
         self.env_var = ctk.StringVar(value="Produksjon")
-        self.env_menu = ctk.CTkOptionMenu(
+        self.env_menu = ctk.CTkSegmentedButton(
             env_frame,
             values=["Produksjon", "Test"],
             variable=self.env_var,
             command=self._on_env_change,
-            width=120
+            font=ctk.CTkFont(size=12),
+            fg_color=COLORS["bg_card"],
+            selected_color=COLORS["primary"],
+            selected_hover_color=COLORS["primary_hover"],
+            unselected_color=COLORS["bg_input"],
+            unselected_hover_color=COLORS["border"]
         )
         self.env_menu.pack(side="left")
 
     def _create_tabs(self):
         """Opprett faner for ulike funksjoner"""
-        self.tabview = ctk.CTkTabview(self, width=860, height=500)
-        self.tabview.grid(row=1, column=0, sticky="nsew", padx=20, pady=10)
+        self.tabview = ctk.CTkTabview(
+            self,
+            fg_color=COLORS["bg_card"],
+            segmented_button_fg_color=COLORS["bg_dark"],
+            segmented_button_selected_color=COLORS["primary"],
+            segmented_button_selected_hover_color=COLORS["primary_hover"],
+            segmented_button_unselected_color=COLORS["bg_card"],
+            segmented_button_unselected_hover_color=COLORS["bg_input"],
+            corner_radius=12
+        )
+        self.tabview.grid(row=1, column=0, sticky="nsew", padx=24, pady=12)
 
-        # Legg til faner
-        self.tabview.add("🔍 DAS - Ledig domene")
-        self.tabview.add("📋 Domeneoppslag")
-        self.tabview.add("👤 Entitetsoppslag")
-        self.tabview.add("🖥️ Navneserver")
-        self.tabview.add("📄 Whois")
+        # Legg til faner (uten emojis for profesjonelt utseende)
+        self.tabview.add("DAS")
+        self.tabview.add("Domene")
+        self.tabview.add("Entitet")
+        self.tabview.add("Navneserver")
+        self.tabview.add("Whois")
 
         # Konfigurer hver fane
         self._setup_das_tab()
@@ -193,31 +370,49 @@ class NoridGUI(ctk.CTk):
         self._setup_whois_tab()
 
     def _setup_das_tab(self):
-        """Sett opp DAS-fanen"""
-        tab = self.tabview.tab("🔍 DAS - Ledig domene")
+        """Sett opp DAS-fanen - sjekk om domene er ledig"""
+        tab = self.tabview.tab("DAS")
         tab.grid_columnconfigure(0, weight=1)
-        tab.grid_rowconfigure(2, weight=1)
+        tab.grid_rowconfigure(1, weight=1)
+
+        # Toppseksjon
+        top_frame = ctk.CTkFrame(tab, fg_color="transparent")
+        top_frame.grid(row=0, column=0, pady=(24, 16))
 
         # Beskrivelse
         desc = ctk.CTkLabel(
-            tab,
-            text="Sjekk om et .no-domene er ledig for registrering",
-            font=ctk.CTkFont(size=14)
+            top_frame,
+            text="Domain Availability Service",
+            font=ctk.CTkFont(size=16, weight="bold"),
+            text_color=COLORS["text"]
         )
-        desc.grid(row=0, column=0, pady=(20, 10))
+        desc.pack(pady=(0, 4))
+        
+        desc_sub = ctk.CTkLabel(
+            top_frame,
+            text="Sjekk om et .no-domene er ledig for registrering",
+            font=ctk.CTkFont(size=13),
+            text_color=COLORS["text_muted"]
+        )
+        desc_sub.pack(pady=(0, 16))
 
         # Input-ramme
-        input_frame = ctk.CTkFrame(tab, fg_color="transparent")
-        input_frame.grid(row=1, column=0, pady=10)
+        input_frame = ctk.CTkFrame(top_frame, fg_color="transparent")
+        input_frame.pack()
 
         self.das_entry = ctk.CTkEntry(
             input_frame,
-            placeholder_text="Skriv inn domenenavn (f.eks. example.no)",
-            width=400,
-            height=40,
-            font=ctk.CTkFont(size=14)
+            placeholder_text="domenenavn.no",
+            width=380,
+            height=44,
+            font=ctk.CTkFont(size=15),
+            fg_color=COLORS["bg_input"],
+            border_color=COLORS["border"],
+            text_color=COLORS["text"],
+            placeholder_text_color=COLORS["text_muted"],
+            corner_radius=8
         )
-        self.das_entry.pack(side="left", padx=(0, 10))
+        self.das_entry.pack(side="left", padx=(0, 12))
         self.das_entry.bind("<Return>", lambda e: self._run_das())
 
         self.das_button = ctk.CTkButton(
@@ -225,42 +420,39 @@ class NoridGUI(ctk.CTk):
             text="Sjekk",
             command=self._run_das,
             width=100,
-            height=40,
-            font=ctk.CTkFont(size=14, weight="bold")
+            height=44,
+            font=ctk.CTkFont(size=14, weight="bold"),
+            fg_color=COLORS["primary"],
+            hover_color=COLORS["primary_hover"],
+            corner_radius=8
         )
         self.das_button.pack(side="left")
 
-        # Resultat
-        self.das_result_frame = ctk.CTkFrame(tab)
-        self.das_result_frame.grid(row=2, column=0, sticky="nsew", pady=20, padx=20)
-        self.das_result_frame.grid_columnconfigure(0, weight=1)
-        self.das_result_frame.grid_rowconfigure(0, weight=1)
-
-        self.das_result = ctk.CTkLabel(
-            self.das_result_frame,
-            text="Skriv inn et domenenavn og klikk 'Sjekk'",
-            font=ctk.CTkFont(size=18),
-            text_color="gray"
-        )
-        self.das_result.grid(row=0, column=0, pady=50)
+        # Resultatkort
+        self.das_result_card = ResultCard(tab)
+        self.das_result_card.grid(row=1, column=0, sticky="nsew", padx=24, pady=(0, 24))
 
     def _setup_domain_tab(self):
         """Sett opp domeneoppslag-fanen"""
-        tab = self.tabview.tab("📋 Domeneoppslag")
+        tab = self.tabview.tab("Domene")
         tab.grid_columnconfigure(0, weight=1)
         tab.grid_rowconfigure(1, weight=1)
 
         # Input-ramme
         input_frame = ctk.CTkFrame(tab, fg_color="transparent")
-        input_frame.grid(row=0, column=0, pady=20)
+        input_frame.grid(row=0, column=0, pady=(24, 16))
 
         self.domain_entry = ctk.CTkEntry(
             input_frame,
             placeholder_text="Domenenavn (f.eks. norid.no)",
-            width=400,
-            height=40
+            width=380,
+            height=44,
+            font=ctk.CTkFont(size=14),
+            fg_color=COLORS["bg_input"],
+            border_color=COLORS["border"],
+            corner_radius=8
         )
-        self.domain_entry.pack(side="left", padx=(0, 10))
+        self.domain_entry.pack(side="left", padx=(0, 12))
         self.domain_entry.bind("<Return>", lambda e: self._run_domain())
 
         self.domain_button = ctk.CTkButton(
@@ -268,41 +460,66 @@ class NoridGUI(ctk.CTk):
             text="Slå opp",
             command=self._run_domain,
             width=100,
-            height=40
+            height=44,
+            font=ctk.CTkFont(size=14, weight="bold"),
+            fg_color=COLORS["primary"],
+            hover_color=COLORS["primary_hover"],
+            corner_radius=8
         )
-        self.domain_button.pack(side="left", padx=(0, 10))
+        self.domain_button.pack(side="left", padx=(0, 12))
 
         self.domain_json_var = ctk.BooleanVar(value=False)
-        self.domain_json_check = ctk.CTkCheckBox(
+        self.domain_json_check = ctk.CTkSwitch(
             input_frame,
             text="JSON",
-            variable=self.domain_json_var
+            variable=self.domain_json_var,
+            font=ctk.CTkFont(size=12),
+            text_color=COLORS["text_muted"],
+            progress_color=COLORS["primary"]
         )
         self.domain_json_check.pack(side="left")
 
         # Resultat
-        self.domain_result = ctk.CTkTextbox(tab, width=800, height=350)
-        self.domain_result.grid(row=1, column=0, sticky="nsew", padx=20, pady=(0, 20))
+        self.domain_result = ctk.CTkTextbox(
+            tab,
+            font=ctk.CTkFont(family="SF Mono, Menlo, Monaco, Consolas, monospace", size=13),
+            fg_color=COLORS["bg_input"],
+            text_color=COLORS["text"],
+            border_color=COLORS["border"],
+            border_width=1,
+            corner_radius=8
+        )
+        self.domain_result.grid(row=1, column=0, sticky="nsew", padx=24, pady=(0, 24))
 
     def _setup_entity_tab(self):
         """Sett opp entitetsoppslag-fanen"""
-        tab = self.tabview.tab("👤 Entitetsoppslag")
+        tab = self.tabview.tab("Entitet")
         tab.grid_columnconfigure(0, weight=1)
         tab.grid_rowconfigure(1, weight=1)
 
         # Input-ramme
         input_frame = ctk.CTkFrame(tab, fg_color="transparent")
-        input_frame.grid(row=0, column=0, pady=20)
+        input_frame.grid(row=0, column=0, pady=(24, 16))
 
-        ctk.CTkLabel(input_frame, text="Handle:").pack(side="left", padx=(0, 10))
+        label = ctk.CTkLabel(
+            input_frame,
+            text="Handle:",
+            font=ctk.CTkFont(size=13),
+            text_color=COLORS["text_muted"]
+        )
+        label.pack(side="left", padx=(0, 12))
 
         self.entity_entry = ctk.CTkEntry(
             input_frame,
-            placeholder_text="f.eks. reg1-NORID eller NH55R-NORID",
-            width=350,
-            height=40
+            placeholder_text="f.eks. reg1-NORID",
+            width=320,
+            height=44,
+            font=ctk.CTkFont(size=14),
+            fg_color=COLORS["bg_input"],
+            border_color=COLORS["border"],
+            corner_radius=8
         )
-        self.entity_entry.pack(side="left", padx=(0, 10))
+        self.entity_entry.pack(side="left", padx=(0, 12))
         self.entity_entry.bind("<Return>", lambda e: self._run_entity())
 
         self.entity_button = ctk.CTkButton(
@@ -310,57 +527,88 @@ class NoridGUI(ctk.CTk):
             text="Slå opp",
             command=self._run_entity,
             width=100,
-            height=40
+            height=44,
+            font=ctk.CTkFont(size=14, weight="bold"),
+            fg_color=COLORS["primary"],
+            hover_color=COLORS["primary_hover"],
+            corner_radius=8
         )
-        self.entity_button.pack(side="left", padx=(0, 10))
+        self.entity_button.pack(side="left", padx=(0, 12))
 
         self.entity_json_var = ctk.BooleanVar(value=False)
-        self.entity_json_check = ctk.CTkCheckBox(
+        self.entity_json_check = ctk.CTkSwitch(
             input_frame,
             text="JSON",
-            variable=self.entity_json_var
+            variable=self.entity_json_var,
+            font=ctk.CTkFont(size=12),
+            text_color=COLORS["text_muted"],
+            progress_color=COLORS["primary"]
         )
         self.entity_json_check.pack(side="left")
 
         # Resultat
-        self.entity_result = ctk.CTkTextbox(tab, width=800, height=350)
-        self.entity_result.grid(row=1, column=0, sticky="nsew", padx=20, pady=(0, 20))
+        self.entity_result = ctk.CTkTextbox(
+            tab,
+            font=ctk.CTkFont(family="SF Mono, Menlo, Monaco, Consolas, monospace", size=13),
+            fg_color=COLORS["bg_input"],
+            text_color=COLORS["text"],
+            border_color=COLORS["border"],
+            border_width=1,
+            corner_radius=8
+        )
+        self.entity_result.grid(row=1, column=0, sticky="nsew", padx=24, pady=(0, 24))
 
     def _setup_nameserver_tab(self):
         """Sett opp navneserver-fanen"""
-        tab = self.tabview.tab("🖥️ Navneserver")
+        tab = self.tabview.tab("Navneserver")
         tab.grid_columnconfigure(0, weight=1)
         tab.grid_rowconfigure(2, weight=1)
 
         # Valg mellom oppslag og søk
         mode_frame = ctk.CTkFrame(tab, fg_color="transparent")
-        mode_frame.grid(row=0, column=0, pady=(20, 10))
+        mode_frame.grid(row=0, column=0, pady=(24, 12))
 
         self.ns_mode = ctk.StringVar(value="handle")
-        ctk.CTkRadioButton(
+        
+        handle_radio = ctk.CTkRadioButton(
             mode_frame,
             text="Oppslag via handle",
             variable=self.ns_mode,
-            value="handle"
-        ).pack(side="left", padx=20)
-        ctk.CTkRadioButton(
+            value="handle",
+            font=ctk.CTkFont(size=13),
+            text_color=COLORS["text"],
+            fg_color=COLORS["primary"],
+            hover_color=COLORS["primary_hover"]
+        )
+        handle_radio.pack(side="left", padx=(0, 24))
+        
+        search_radio = ctk.CTkRadioButton(
             mode_frame,
             text="Søk via hostname",
             variable=self.ns_mode,
-            value="search"
-        ).pack(side="left", padx=20)
+            value="search",
+            font=ctk.CTkFont(size=13),
+            text_color=COLORS["text"],
+            fg_color=COLORS["primary"],
+            hover_color=COLORS["primary_hover"]
+        )
+        search_radio.pack(side="left")
 
         # Input-ramme
         input_frame = ctk.CTkFrame(tab, fg_color="transparent")
-        input_frame.grid(row=1, column=0, pady=10)
+        input_frame.grid(row=1, column=0, pady=(0, 16))
 
         self.ns_entry = ctk.CTkEntry(
             input_frame,
-            placeholder_text="Handle (X11H-NORID) eller hostname (*.nic.no)",
-            width=400,
-            height=40
+            placeholder_text="X11H-NORID eller *.nic.no",
+            width=380,
+            height=44,
+            font=ctk.CTkFont(size=14),
+            fg_color=COLORS["bg_input"],
+            border_color=COLORS["border"],
+            corner_radius=8
         )
-        self.ns_entry.pack(side="left", padx=(0, 10))
+        self.ns_entry.pack(side="left", padx=(0, 12))
         self.ns_entry.bind("<Return>", lambda e: self._run_nameserver())
 
         self.ns_button = ctk.CTkButton(
@@ -368,39 +616,58 @@ class NoridGUI(ctk.CTk):
             text="Søk",
             command=self._run_nameserver,
             width=100,
-            height=40
+            height=44,
+            font=ctk.CTkFont(size=14, weight="bold"),
+            fg_color=COLORS["primary"],
+            hover_color=COLORS["primary_hover"],
+            corner_radius=8
         )
-        self.ns_button.pack(side="left", padx=(0, 10))
+        self.ns_button.pack(side="left", padx=(0, 12))
 
         self.ns_json_var = ctk.BooleanVar(value=False)
-        self.ns_json_check = ctk.CTkCheckBox(
+        self.ns_json_check = ctk.CTkSwitch(
             input_frame,
             text="JSON",
-            variable=self.ns_json_var
+            variable=self.ns_json_var,
+            font=ctk.CTkFont(size=12),
+            text_color=COLORS["text_muted"],
+            progress_color=COLORS["primary"]
         )
         self.ns_json_check.pack(side="left")
 
         # Resultat
-        self.ns_result = ctk.CTkTextbox(tab, width=800, height=300)
-        self.ns_result.grid(row=2, column=0, sticky="nsew", padx=20, pady=(0, 20))
+        self.ns_result = ctk.CTkTextbox(
+            tab,
+            font=ctk.CTkFont(family="SF Mono, Menlo, Monaco, Consolas, monospace", size=13),
+            fg_color=COLORS["bg_input"],
+            text_color=COLORS["text"],
+            border_color=COLORS["border"],
+            border_width=1,
+            corner_radius=8
+        )
+        self.ns_result.grid(row=2, column=0, sticky="nsew", padx=24, pady=(0, 24))
 
     def _setup_whois_tab(self):
         """Sett opp whois-fanen"""
-        tab = self.tabview.tab("📄 Whois")
+        tab = self.tabview.tab("Whois")
         tab.grid_columnconfigure(0, weight=1)
         tab.grid_rowconfigure(1, weight=1)
 
         # Input-ramme
         input_frame = ctk.CTkFrame(tab, fg_color="transparent")
-        input_frame.grid(row=0, column=0, pady=20)
+        input_frame.grid(row=0, column=0, pady=(24, 16))
 
         self.whois_entry = ctk.CTkEntry(
             input_frame,
             placeholder_text="Domenenavn (f.eks. norid.no)",
-            width=400,
-            height=40
+            width=380,
+            height=44,
+            font=ctk.CTkFont(size=14),
+            fg_color=COLORS["bg_input"],
+            border_color=COLORS["border"],
+            corner_radius=8
         )
-        self.whois_entry.pack(side="left", padx=(0, 10))
+        self.whois_entry.pack(side="left", padx=(0, 12))
         self.whois_entry.bind("<Return>", lambda e: self._run_whois())
 
         self.whois_button = ctk.CTkButton(
@@ -408,30 +675,60 @@ class NoridGUI(ctk.CTk):
             text="Slå opp",
             command=self._run_whois,
             width=100,
-            height=40
+            height=44,
+            font=ctk.CTkFont(size=14, weight="bold"),
+            fg_color=COLORS["primary"],
+            hover_color=COLORS["primary_hover"],
+            corner_radius=8
         )
         self.whois_button.pack(side="left")
 
         # Resultat
-        self.whois_result = ctk.CTkTextbox(tab, width=800, height=350, font=ctk.CTkFont(family="Courier"))
-        self.whois_result.grid(row=1, column=0, sticky="nsew", padx=20, pady=(0, 20))
+        self.whois_result = ctk.CTkTextbox(
+            tab,
+            font=ctk.CTkFont(family="SF Mono, Menlo, Monaco, Consolas, monospace", size=12),
+            fg_color=COLORS["bg_input"],
+            text_color=COLORS["text"],
+            border_color=COLORS["border"],
+            border_width=1,
+            corner_radius=8
+        )
+        self.whois_result.grid(row=1, column=0, sticky="nsew", padx=24, pady=(0, 24))
 
     def _create_statusbar(self):
         """Opprett statuslinje"""
+        status_frame = ctk.CTkFrame(self, fg_color=COLORS["bg_card"], height=36, corner_radius=0)
+        status_frame.grid(row=2, column=0, sticky="ew")
+        status_frame.grid_propagate(False)
+        
         self.statusbar = ctk.CTkLabel(
-            self,
+            status_frame,
             text="Klar",
             font=ctk.CTkFont(size=12),
-            text_color="gray"
+            text_color=COLORS["text_muted"]
         )
-        self.statusbar.grid(row=2, column=0, sticky="ew", padx=20, pady=(0, 10))
+        self.statusbar.pack(side="left", padx=24, pady=8)
+        
+        # Miljøindikator i statuslinjen
+        self.env_indicator = ctk.CTkLabel(
+            status_frame,
+            text="rdap.norid.no",
+            font=ctk.CTkFont(size=11),
+            text_color=COLORS["text_muted"]
+        )
+        self.env_indicator.pack(side="right", padx=24, pady=8)
 
     def _on_env_change(self, value: str):
         """Håndter miljøbytte"""
         use_test = value == "Test"
         self.client = NoridClient(use_test=use_test)
-        env_text = "testmiljø" if use_test else "produksjonsmiljø"
-        self._set_status(f"Byttet til {env_text}")
+        
+        if use_test:
+            self._set_status("Byttet til testmiljø")
+            self.env_indicator.configure(text="rdap.test.norid.no", text_color=COLORS["warning"])
+        else:
+            self._set_status("Byttet til produksjonsmiljø")
+            self.env_indicator.configure(text="rdap.norid.no", text_color=COLORS["text_muted"])
 
     def _set_status(self, text: str):
         """Oppdater statuslinjen"""
@@ -442,13 +739,23 @@ class NoridGUI(ctk.CTk):
         thread = threading.Thread(target=func, daemon=True)
         thread.start()
 
+    # ========================================================================
+    # DAS
+    # ========================================================================
     def _run_das(self):
         """Kjør DAS-oppslag"""
         domain = self.das_entry.get().strip()
         if not domain:
             return
 
-        self.das_button.configure(state="disabled")
+        # Legg til .no hvis det mangler
+        if not domain.endswith(".no"):
+            domain = domain + ".no"
+            self.das_entry.delete(0, "end")
+            self.das_entry.insert(0, domain)
+
+        self.das_button.configure(state="disabled", text="...")
+        self.das_result_card.show_loading(domain)
         self._set_status(f"Sjekker {domain}...")
 
         def do_request():
@@ -459,54 +766,37 @@ class NoridGUI(ctk.CTk):
 
     def _show_das_result(self, domain: str, success: bool, result: str):
         """Vis DAS-resultat"""
-        self.das_button.configure(state="normal")
+        self.das_button.configure(state="normal", text="Sjekk")
 
         if not success:
-            self.das_result.configure(text=f"Feil: {result}", text_color="orange")
+            self.das_result_card.show_error(result)
             self._set_status("Feil ved oppslag")
             return
 
         result_lower = result.lower()
         if "available" in result_lower and "not available" not in result_lower:
-            self.das_result.configure(
-                text=f"✓ {domain} er LEDIG",
-                text_color="#00ff00",
-                font=ctk.CTkFont(size=24, weight="bold")
-            )
+            self.das_result_card.show_available(domain)
         elif "not registered" in result_lower:
-            self.das_result.configure(
-                text=f"✓ {domain} er LEDIG",
-                text_color="#00ff00",
-                font=ctk.CTkFont(size=24, weight="bold")
-            )
+            self.das_result_card.show_available(domain)
         elif "registered" in result_lower or "delegated" in result_lower:
-            self.das_result.configure(
-                text=f"✗ {domain} er OPPTATT",
-                text_color="#ff4444",
-                font=ctk.CTkFont(size=24, weight="bold")
-            )
+            self.das_result_card.show_taken(domain)
         elif "invalid" in result_lower:
-            self.das_result.configure(
-                text=f"⚠ {domain} er UGYLDIG",
-                text_color="orange",
-                font=ctk.CTkFont(size=24, weight="bold")
-            )
+            self.das_result_card.show_invalid(domain)
         else:
-            self.das_result.configure(
-                text=f"? Ukjent status for {domain}",
-                text_color="gray",
-                font=ctk.CTkFont(size=18)
-            )
+            self.das_result_card.show_error(f"Ukjent status: {result[:100]}")
 
-        self._set_status(f"DAS-oppslag fullført for {domain}")
+        self._set_status(f"Oppslag fullført for {domain}")
 
+    # ========================================================================
+    # Domeneoppslag
+    # ========================================================================
     def _run_domain(self):
         """Kjør domeneoppslag"""
         domain = self.domain_entry.get().strip()
         if not domain:
             return
 
-        self.domain_button.configure(state="disabled")
+        self.domain_button.configure(state="disabled", text="...")
         self._set_status(f"Slår opp {domain}...")
 
         def do_request():
@@ -517,7 +807,7 @@ class NoridGUI(ctk.CTk):
 
     def _show_domain_result(self, domain: str, success: bool, result):
         """Vis domeneoppslag-resultat"""
-        self.domain_button.configure(state="normal")
+        self.domain_button.configure(state="normal", text="Slå opp")
         self.domain_result.delete("0.0", "end")
 
         if not success:
@@ -530,60 +820,68 @@ class NoridGUI(ctk.CTk):
         else:
             self.domain_result.insert("0.0", self._format_domain(result))
 
-        self._set_status(f"Domeneoppslag fullført for {domain}")
+        self._set_status(f"Oppslag fullført for {domain}")
 
     def _format_domain(self, data: Dict) -> str:
         """Formater domenedata til lesbar tekst"""
         lines = []
-        lines.append("=" * 60)
-        lines.append(f"  Domene: {data.get('ldhName', data.get('unicodeName', 'Ukjent'))}")
-        lines.append("=" * 60)
+        domain_name = data.get('ldhName', data.get('unicodeName', 'Ukjent'))
+        
+        lines.append(f"{'─' * 56}")
+        lines.append(f"  DOMENE: {domain_name}")
+        lines.append(f"{'─' * 56}")
         lines.append("")
 
         # Status
         statuses = data.get("status", [])
         if statuses:
-            lines.append(f"  Status: {', '.join(statuses)}")
+            lines.append(f"  Status      │ {', '.join(statuses)}")
 
         # Hendelser
         for event in data.get("events", []):
             action = event.get("eventAction", "")
             date = event.get("eventDate", "")[:10] if event.get("eventDate") else ""
             if action == "registration":
-                lines.append(f"  Registrert: {date}")
+                lines.append(f"  Registrert  │ {date}")
             elif action == "last changed":
-                lines.append(f"  Sist endret: {date}")
+                lines.append(f"  Sist endret │ {date}")
             elif action == "expiration":
-                lines.append(f"  Utløper: {date}")
+                lines.append(f"  Utløper     │ {date}")
 
         # Navneservere
         nameservers = data.get("nameservers", [])
         if nameservers:
             lines.append("")
-            lines.append("  Navneservere:")
+            lines.append("  NAVNESERVERE")
+            lines.append(f"  {'─' * 40}")
             for ns in nameservers:
-                lines.append(f"    - {ns.get('ldhName', '')}")
+                lines.append(f"    • {ns.get('ldhName', '')}")
 
         # Registrar
         for entity in data.get("entities", []):
             if "registrar" in entity.get("roles", []):
                 lines.append("")
-                lines.append(f"  Registrar: {entity.get('handle', '')}")
+                lines.append("  REGISTRAR")
+                lines.append(f"  {'─' * 40}")
+                lines.append(f"    Handle: {entity.get('handle', '')}")
                 vcard = entity.get("vcardArray", [])
                 if len(vcard) > 1:
                     for item in vcard[1]:
                         if item[0] == "fn":
-                            lines.append(f"    Navn: {item[3]}")
+                            lines.append(f"    Navn:   {item[3]}")
 
         return "\n".join(lines)
 
+    # ========================================================================
+    # Entitetsoppslag
+    # ========================================================================
     def _run_entity(self):
         """Kjør entitetsoppslag"""
         handle = self.entity_entry.get().strip()
         if not handle:
             return
 
-        self.entity_button.configure(state="disabled")
+        self.entity_button.configure(state="disabled", text="...")
         self._set_status(f"Slår opp {handle}...")
 
         def do_request():
@@ -594,7 +892,7 @@ class NoridGUI(ctk.CTk):
 
     def _show_entity_result(self, handle: str, success: bool, result):
         """Vis entitetsoppslag-resultat"""
-        self.entity_button.configure(state="normal")
+        self.entity_button.configure(state="normal", text="Slå opp")
         self.entity_result.delete("0.0", "end")
 
         if not success:
@@ -607,62 +905,73 @@ class NoridGUI(ctk.CTk):
         else:
             self.entity_result.insert("0.0", self._format_entity(result))
 
-        self._set_status(f"Entitetsoppslag fullført for {handle}")
+        self._set_status(f"Oppslag fullført for {handle}")
 
     def _format_entity(self, data: Dict) -> str:
         """Formater entitetsdata til lesbar tekst"""
         lines = []
-        lines.append("=" * 60)
-        lines.append(f"  Entitet: {data.get('handle', 'Ukjent')}")
-        lines.append("=" * 60)
+        handle = data.get('handle', 'Ukjent')
+        
+        lines.append(f"{'─' * 56}")
+        lines.append(f"  ENTITET: {handle}")
+        lines.append(f"{'─' * 56}")
         lines.append("")
 
         # Roller
         roles = data.get("roles", [])
         if roles:
-            lines.append(f"  Roller: {', '.join(roles)}")
+            lines.append(f"  Roller      │ {', '.join(roles)}")
 
         # Status
         statuses = data.get("status", [])
         if statuses:
-            lines.append(f"  Status: {', '.join(statuses)}")
+            lines.append(f"  Status      │ {', '.join(statuses)}")
 
         # vCard
         vcard = data.get("vcardArray", [])
         if len(vcard) > 1:
+            lines.append("")
+            lines.append("  KONTAKTINFO")
+            lines.append(f"  {'─' * 40}")
             for item in vcard[1]:
                 if item[0] == "fn":
-                    lines.append(f"  Navn: {item[3]}")
+                    lines.append(f"    Navn:     {item[3]}")
                 elif item[0] == "org":
-                    lines.append(f"  Organisasjon: {item[3]}")
+                    lines.append(f"    Org:      {item[3]}")
                 elif item[0] == "email":
-                    lines.append(f"  E-post: {item[3]}")
+                    lines.append(f"    E-post:   {item[3]}")
                 elif item[0] == "tel":
-                    lines.append(f"  Telefon: {item[3]}")
+                    lines.append(f"    Telefon:  {item[3]}")
                 elif item[0] == "adr" and isinstance(item[3], list):
                     city = item[3][3] if len(item[3]) > 3 else ""
                     country = item[3][6] if len(item[3]) > 6 else ""
                     if city or country:
-                        lines.append(f"  Sted: {city}, {country}")
+                        lines.append(f"    Sted:     {city}, {country}")
 
         # Hendelser
-        for event in data.get("events", []):
-            action = event.get("eventAction", "")
-            date = event.get("eventDate", "")[:10] if event.get("eventDate") else ""
-            if action == "registration":
-                lines.append(f"  Registrert: {date}")
-            elif action == "last changed":
-                lines.append(f"  Sist endret: {date}")
+        events = data.get("events", [])
+        if events:
+            lines.append("")
+            for event in events:
+                action = event.get("eventAction", "")
+                date = event.get("eventDate", "")[:10] if event.get("eventDate") else ""
+                if action == "registration":
+                    lines.append(f"  Registrert  │ {date}")
+                elif action == "last changed":
+                    lines.append(f"  Sist endret │ {date}")
 
         return "\n".join(lines)
 
+    # ========================================================================
+    # Navneserver
+    # ========================================================================
     def _run_nameserver(self):
         """Kjør navneserveroppslag"""
         query = self.ns_entry.get().strip()
         if not query:
             return
 
-        self.ns_button.configure(state="disabled")
+        self.ns_button.configure(state="disabled", text="...")
         self._set_status(f"Søker etter {query}...")
 
         def do_request():
@@ -676,7 +985,7 @@ class NoridGUI(ctk.CTk):
 
     def _show_ns_result(self, query: str, success: bool, result):
         """Vis navneserver-resultat"""
-        self.ns_button.configure(state="normal")
+        self.ns_button.configure(state="normal", text="Søk")
         self.ns_result.delete("0.0", "end")
 
         if not success:
@@ -692,32 +1001,37 @@ class NoridGUI(ctk.CTk):
             else:
                 self.ns_result.insert("0.0", self._format_ns_search(result))
 
-        self._set_status(f"Navneserveroppslag fullført for {query}")
+        self._set_status(f"Oppslag fullført for {query}")
 
     def _format_nameserver(self, data: Dict) -> str:
         """Formater navneserverdata"""
         lines = []
-        lines.append("=" * 60)
-        lines.append(f"  Navneserver: {data.get('ldhName', 'Ukjent')}")
-        lines.append("=" * 60)
+        name = data.get('ldhName', 'Ukjent')
+        
+        lines.append(f"{'─' * 56}")
+        lines.append(f"  NAVNESERVER: {name}")
+        lines.append(f"{'─' * 56}")
         lines.append("")
-        lines.append(f"  Handle: {data.get('handle', '')}")
+        lines.append(f"  Handle      │ {data.get('handle', '')}")
 
         statuses = data.get("status", [])
         if statuses:
-            lines.append(f"  Status: {', '.join(statuses)}")
+            lines.append(f"  Status      │ {', '.join(statuses)}")
 
         ips = data.get("ipAddresses", {})
         if ips.get("v4"):
             lines.append("")
-            lines.append("  IPv4:")
+            lines.append("  IPv4-ADRESSER")
+            lines.append(f"  {'─' * 40}")
             for ip in ips["v4"]:
-                lines.append(f"    - {ip}")
+                lines.append(f"    • {ip}")
+                
         if ips.get("v6"):
             lines.append("")
-            lines.append("  IPv6:")
+            lines.append("  IPv6-ADRESSER")
+            lines.append(f"  {'─' * 40}")
             for ip in ips["v6"]:
-                lines.append(f"    - {ip}")
+                lines.append(f"    • {ip}")
 
         return "\n".join(lines)
 
@@ -727,26 +1041,32 @@ class NoridGUI(ctk.CTk):
         if not results:
             return "Ingen navneservere funnet."
 
-        lines = [f"Fant {len(results)} navneserver(e):", ""]
-        lines.append(f"{'Handle':<15} {'Navn':<30} {'IPv4':<20}")
-        lines.append("-" * 65)
+        lines = []
+        lines.append(f"  Fant {len(results)} navneserver(e)")
+        lines.append(f"{'─' * 56}")
+        lines.append("")
+        lines.append(f"  {'HANDLE':<16} {'NAVN':<28} {'IPv4'}")
+        lines.append(f"  {'─' * 16} {'─' * 28} {'─' * 10}")
 
         for ns in results:
-            handle = ns.get("handle", "")
-            name = ns.get("ldhName", "")
+            handle = ns.get("handle", "")[:15]
+            name = ns.get("ldhName", "")[:27]
             ips = ns.get("ipAddresses", {})
-            v4 = ", ".join(ips.get("v4", []))
-            lines.append(f"{handle:<15} {name:<30} {v4:<20}")
+            v4 = ", ".join(ips.get("v4", []))[:20]
+            lines.append(f"  {handle:<16} {name:<28} {v4}")
 
         return "\n".join(lines)
 
+    # ========================================================================
+    # Whois
+    # ========================================================================
     def _run_whois(self):
         """Kjør whois-oppslag"""
         domain = self.whois_entry.get().strip()
         if not domain:
             return
 
-        self.whois_button.configure(state="disabled")
+        self.whois_button.configure(state="disabled", text="...")
         self._set_status(f"Whois-oppslag for {domain}...")
 
         def do_request():
@@ -757,7 +1077,7 @@ class NoridGUI(ctk.CTk):
 
     def _show_whois_result(self, domain: str, success: bool, result: str):
         """Vis whois-resultat"""
-        self.whois_button.configure(state="normal")
+        self.whois_button.configure(state="normal", text="Slå opp")
         self.whois_result.delete("0.0", "end")
 
         if not success:
