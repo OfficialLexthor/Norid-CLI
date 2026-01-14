@@ -470,6 +470,218 @@ HTML_TEMPLATE = '''
             overflow-x: auto;
         }
 
+        /* Info Grid for RDAP */
+        .info-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+        
+        .info-row {
+            display: flex;
+            align-items: flex-start;
+            gap: 1rem;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid rgba(71, 85, 105, 0.3);
+        }
+        
+        .info-row:last-child {
+            border-bottom: none;
+        }
+        
+        .info-label {
+            color: var(--text-muted);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            min-width: 90px;
+            flex-shrink: 0;
+        }
+        
+        .info-value {
+            color: var(--text);
+            font-weight: 500;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.375rem;
+        }
+        
+        .status-badge {
+            background: rgba(59, 130, 246, 0.15);
+            color: #60A5FA;
+            padding: 0.125rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            font-weight: 500;
+        }
+        
+        .info-section {
+            margin-top: 0.75rem;
+            padding-top: 0.75rem;
+            border-top: 1px solid rgba(71, 85, 105, 0.3);
+        }
+        
+        .info-section-title {
+            color: var(--accent);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-weight: 600;
+            display: block;
+            margin-bottom: 0.5rem;
+        }
+        
+        .ns-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+        
+        .ns-list li {
+            color: var(--text);
+            font-size: 0.8rem;
+            padding: 0.25rem 0;
+            padding-left: 1rem;
+            position: relative;
+        }
+        
+        .ns-list li::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 4px;
+            height: 4px;
+            background: var(--primary);
+            border-radius: 50%;
+        }
+        
+        .registrar-info {
+            display: flex;
+            flex-direction: column;
+            gap: 0.125rem;
+        }
+        
+        .registrar-handle {
+            color: var(--text);
+            font-weight: 600;
+            font-size: 0.85rem;
+        }
+        
+        .registrar-name {
+            color: var(--text-muted);
+            font-size: 0.8rem;
+        }
+        
+        /* DNS Table */
+        .dns-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .dns-table tr {
+            border-bottom: 1px solid rgba(71, 85, 105, 0.2);
+        }
+        
+        .dns-table tr:last-child {
+            border-bottom: none;
+        }
+        
+        .dns-table tr:hover {
+            background: rgba(59, 130, 246, 0.05);
+        }
+        
+        .dns-type {
+            color: var(--primary);
+            font-weight: 600;
+            font-size: 0.75rem;
+            padding: 0.5rem 0.75rem 0.5rem 0;
+            width: 50px;
+            vertical-align: top;
+        }
+        
+        .dns-value {
+            color: var(--text);
+            font-size: 0.8rem;
+            padding: 0.5rem 0;
+            word-break: break-all;
+        }
+
+        /* Overview Cards */
+        .overview-card {
+            background: linear-gradient(135deg, rgba(30, 41, 59, 0.8) 0%, rgba(15, 23, 42, 0.9) 100%);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        
+        .overview-card-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 1rem 1.25rem;
+            background: rgba(59, 130, 246, 0.05);
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .overview-card-header h3 {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--text);
+            margin: 0;
+            flex-grow: 1;
+        }
+        
+        .overview-icon {
+            width: 18px;
+            height: 18px;
+            color: var(--primary);
+        }
+        
+        .overview-badge {
+            background: rgba(59, 130, 246, 0.2);
+            color: var(--primary);
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.65rem;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+        }
+        
+        .overview-content {
+            padding: 1rem 1.25rem;
+            min-height: 180px;
+            font-size: 0.85rem;
+        }
+        
+        .loading-placeholder {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 0.75rem;
+            height: 150px;
+            color: var(--text-muted);
+            font-size: 0.8rem;
+        }
+        
+        .loading-spinner {
+            width: 24px;
+            height: 24px;
+            border: 2px solid var(--border);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
         .result-box.loading {
             display: flex;
             align-items: center;
@@ -669,17 +881,30 @@ HTML_TEMPLATE = '''
                     </div>
                     
                     <!-- Grid for resultater -->
-                    <div id="overview-grid" style="display: none; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div id="overview-grid" style="display: none; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
                         <!-- RDAP Info -->
-                        <div class="card" style="margin: 0;">
-                            <h3 style="font-size: 1rem; font-weight: 600; margin-bottom: 0.75rem; color: #60A5FA;">Domeneinfo (RDAP)</h3>
-                            <div id="overview-rdap" class="result-box" style="min-height: 150px; font-size: 0.8rem;"></div>
+                        <div class="overview-card">
+                            <div class="overview-card-header">
+                                <svg class="overview-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                                </svg>
+                                <h3>Domeneinfo</h3>
+                                <span class="overview-badge">RDAP</span>
+                            </div>
+                            <div id="overview-rdap" class="overview-content"></div>
                         </div>
                         
                         <!-- DNS Records -->
-                        <div class="card" style="margin: 0;">
-                            <h3 style="font-size: 1rem; font-weight: 600; margin-bottom: 0.75rem; color: #60A5FA;">DNS Records</h3>
-                            <div id="overview-dns" class="result-box" style="min-height: 150px; font-size: 0.8rem;"></div>
+                        <div class="overview-card">
+                            <div class="overview-card-header">
+                                <svg class="overview-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <circle cx="12" cy="12" r="10"/>
+                                    <line x1="2" y1="12" x2="22" y2="12"/>
+                                    <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+                                </svg>
+                                <h3>DNS Records</h3>
+                            </div>
+                            <div id="overview-dns" class="overview-content"></div>
                         </div>
                     </div>
                 </div>
@@ -907,8 +1132,8 @@ HTML_TEMPLATE = '''
             statusCard.querySelector('.status').textContent = 'Henter informasjon...';
             
             grid.style.display = 'grid';
-            rdapBox.innerHTML = '<div style="color: #94A3B8; text-align: center; padding: 2rem;">Laster...</div>';
-            dnsBox.innerHTML = '<div style="color: #94A3B8; text-align: center; padding: 2rem;">Laster...</div>';
+            rdapBox.innerHTML = '<div class="loading-placeholder"><div class="loading-spinner"></div><span>Henter domenedata...</span></div>';
+            dnsBox.innerHTML = '<div class="loading-placeholder"><div class="loading-spinner"></div><span>Henter DNS...</span></div>';
             
             try {
                 // Kjør alle oppslag parallelt
@@ -941,14 +1166,14 @@ HTML_TEMPLATE = '''
                 
                 // Vis RDAP-data
                 if (domainData.success) {
-                    rdapBox.textContent = formatDomainCompact(domainData.data);
+                    rdapBox.innerHTML = formatDomainCompact(domainData.data);
                 } else {
                     rdapBox.innerHTML = `<div style="color: #F59E0B;">${domainData.error || 'Ingen data'}</div>`;
                 }
                 
                 // Vis DNS-data
                 if (dnsData.success) {
-                    dnsBox.textContent = formatDnsCompact(dnsData.data);
+                    dnsBox.innerHTML = formatDnsCompact(dnsData.data);
                 } else {
                     dnsBox.innerHTML = `<div style="color: #F59E0B;">${dnsData.error || 'Ingen data'}</div>`;
                 }
@@ -964,51 +1189,76 @@ HTML_TEMPLATE = '''
         }
 
         function formatDomainCompact(data) {
-            let lines = [];
-            const name = data.ldhName || data.unicodeName || '';
+            let html = '<div class="info-grid">';
             
+            // Datoer
+            let regDate = '', changedDate = '';
             (data.events || []).forEach(e => {
                 const date = e.eventDate ? e.eventDate.slice(0, 10) : '';
-                if (e.eventAction === 'registration') lines.push(`Registrert:  ${date}`);
-                if (e.eventAction === 'last changed') lines.push(`Sist endret: ${date}`);
+                if (e.eventAction === 'registration') regDate = date;
+                if (e.eventAction === 'last changed') changedDate = date;
             });
             
-            if (data.status) {
-                lines.push(`Status:      ${data.status.join(', ')}`);
+            if (regDate) {
+                html += `<div class="info-row"><span class="info-label">Registrert</span><span class="info-value">${regDate}</span></div>`;
+            }
+            if (changedDate) {
+                html += `<div class="info-row"><span class="info-label">Sist endret</span><span class="info-value">${changedDate}</span></div>`;
             }
             
+            // Status
+            if (data.status && data.status.length) {
+                const statusBadges = data.status.map(s => `<span class="status-badge">${s}</span>`).join('');
+                html += `<div class="info-row"><span class="info-label">Status</span><span class="info-value">${statusBadges}</span></div>`;
+            }
+            
+            // Navneservere
             if (data.nameservers && data.nameservers.length) {
-                lines.push('');
-                lines.push('Navneservere:');
+                html += '<div class="info-section"><span class="info-section-title">Navneservere</span><ul class="ns-list">';
                 data.nameservers.forEach(ns => {
-                    lines.push(`  • ${ns.ldhName || ''}`);
+                    html += `<li>${ns.ldhName || ''}</li>`;
                 });
+                html += '</ul></div>';
             }
             
+            // Registrar
             (data.entities || []).forEach(entity => {
                 if (entity.roles && entity.roles.includes('registrar')) {
-                    lines.push('');
-                    lines.push(`Registrar: ${entity.handle || ''}`);
+                    let regName = '';
                     if (entity.vcardArray && entity.vcardArray[1]) {
                         entity.vcardArray[1].forEach(item => {
-                            if (item[0] === 'fn') lines.push(`  ${item[3]}`);
+                            if (item[0] === 'fn') regName = item[3];
                         });
                     }
+                    html += `<div class="info-section"><span class="info-section-title">Registrar</span>`;
+                    html += `<div class="registrar-info"><span class="registrar-handle">${entity.handle || ''}</span>`;
+                    if (regName) html += `<span class="registrar-name">${regName}</span>`;
+                    html += '</div></div>';
                 }
             });
             
-            return lines.join('\\n');
+            html += '</div>';
+            return html;
         }
 
         function formatDnsCompact(data) {
-            let lines = [];
-            for (const [rtype, values] of Object.entries(data)) {
+            let html = '<table class="dns-table"><tbody>';
+            
+            // Sorter records etter type
+            const order = ['A', 'AAAA', 'MX', 'NS', 'TXT', 'CNAME'];
+            const sortedEntries = Object.entries(data).sort((a, b) => {
+                return order.indexOf(a[0]) - order.indexOf(b[0]);
+            });
+            
+            for (const [rtype, values] of sortedEntries) {
                 for (const value of values) {
-                    const shortValue = value.length > 40 ? value.slice(0, 37) + '...' : value;
-                    lines.push(`${rtype.padEnd(6)} ${shortValue}`);
+                    const displayValue = value.length > 45 ? value.slice(0, 42) + '...' : value;
+                    html += `<tr><td class="dns-type">${rtype}</td><td class="dns-value" title="${value}">${displayValue}</td></tr>`;
                 }
             }
-            return lines.join('\\n');
+            
+            html += '</tbody></table>';
+            return html;
         }
 
         // API calls
