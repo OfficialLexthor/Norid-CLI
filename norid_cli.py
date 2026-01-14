@@ -21,6 +21,14 @@ import click
 import requests
 from tabulate import tabulate
 
+# DNS-oppslag
+try:
+    import dns.resolver as dns_resolver
+    DNS_AVAILABLE = True
+except ImportError:
+    dns_resolver = None
+    DNS_AVAILABLE = False
+
 # API-konfigurasjon
 RDAP_BASE_URL = "https://rdap.norid.no"
 RDAP_TEST_URL = "https://rdap.test.norid.no"
@@ -130,6 +138,49 @@ class NoridClient:
     def das(self, domain: str) -> str:
         """Domain Availability Service (DAS) oppslag"""
         return self._socket_request(self.das_host, DAS_PORT, domain)
+
+    # DNS-metoder
+    def dns_lookup(self, domain: str) -> Dict[str, List[str]]:
+        """Hent DNS-records for et domene"""
+        records = {}
+        record_types = ['A', 'AAAA', 'MX', 'NS', 'TXT', 'CNAME']
+        
+        if DNS_AVAILABLE and dns_resolver:
+            # Primær: bruk dnspython
+            for rtype in record_types:
+                try:
+                    answers = dns_resolver.resolve(domain, rtype)
+                    records[rtype] = [str(r) for r in answers]
+                except dns_resolver.NoAnswer:
+                    pass
+                except dns_resolver.NXDOMAIN:
+                    raise click.ClickException(f"Domenet {domain} finnes ikke")
+                except dns_resolver.NoNameservers:
+                    raise click.ClickException(f"Ingen navneservere svarer for {domain}")
+                except Exception:
+                    pass
+        else:
+            # Fallback: bruk Google DNS-over-HTTPS
+            records = self._dns_lookup_google(domain, record_types)
+        
+        return records
+
+    def _dns_lookup_google(self, domain: str, record_types: List[str]) -> Dict[str, List[str]]:
+        """Fallback DNS-oppslag via Google DNS-over-HTTPS"""
+        records = {}
+        
+        for rtype in record_types:
+            try:
+                url = f"https://dns.google/resolve?name={domain}&type={rtype}"
+                response = requests.get(url, timeout=10)
+                if response.status_code == 200:
+                    data = response.json()
+                    if data.get("Answer"):
+                        records[rtype] = [a["data"] for a in data["Answer"]]
+            except Exception:
+                pass
+        
+        return records
 
 
 # Hjelpefunksjoner for output
@@ -533,6 +584,46 @@ def das(ctx, domain: str, raw: bool):
         click.echo(response)
     else:
         format_das_result(response, domain)
+
+
+# === DNS ===
+@cli.command()
+@click.argument("domain")
+@click.option("--json", "as_json", is_flag=True, help="Output som JSON")
+@click.pass_context
+def dns(ctx, domain: str, as_json: bool):
+    """Slå opp DNS-records for et domene
+    
+    \b
+    Viser følgende record-typer:
+      A, AAAA, MX, NS, TXT, CNAME
+    
+    \b
+    Eksempler:
+      norid dns norid.no
+      norid dns example.no --json
+    """
+    client = ctx.obj["client"]
+    records = client.dns_lookup(domain)
+    
+    if not records:
+        click.echo(click.style(f"Ingen DNS-records funnet for {domain}", fg="yellow"))
+        return
+    
+    if as_json:
+        click.echo(format_json(records))
+    else:
+        click.echo()
+        click.echo(click.style(f"DNS Records for {domain}", fg="green", bold=True))
+        click.echo(click.style("=" * 50, fg="blue"))
+        
+        rows = []
+        for rtype, values in records.items():
+            for value in values:
+                rows.append([rtype, value])
+        
+        click.echo(tabulate(rows, headers=["Type", "Record"], tablefmt="simple"))
+        click.echo()
 
 
 if __name__ == "__main__":

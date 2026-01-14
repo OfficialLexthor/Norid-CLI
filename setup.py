@@ -21,6 +21,7 @@ setup(
         "tabulate>=0.9.0",
         "customtkinter>=5.2.0",
         "flask>=3.0.0",
+        "dnspython>=2.4.0",
     ],
     entry_points={
         "console_scripts": [

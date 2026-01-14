@@ -18,6 +18,14 @@ from typing import Any, Dict, Optional
 import customtkinter as ctk
 import requests
 
+# DNS-oppslag
+try:
+    import dns.resolver as dns_resolver
+    DNS_AVAILABLE = True
+except ImportError:
+    dns_resolver = None
+    DNS_AVAILABLE = False
+
 # ============================================================================
 # FARGEPALETT - Developer Tool / IDE Theme
 # ============================================================================
@@ -124,6 +132,42 @@ class NoridClient:
 
     def das(self, domain: str) -> tuple[bool, str]:
         return self._socket_request(self.das_host, DAS_PORT, domain)
+
+    def dns_lookup(self, domain: str) -> tuple[bool, Dict[str, list]]:
+        """Hent DNS-records for et domene"""
+        records = {}
+        record_types = ['A', 'AAAA', 'MX', 'NS', 'TXT', 'CNAME']
+        
+        if DNS_AVAILABLE and dns_resolver:
+            for rtype in record_types:
+                try:
+                    answers = dns_resolver.resolve(domain, rtype)
+                    records[rtype] = [str(r) for r in answers]
+                except dns_resolver.NoAnswer:
+                    pass
+                except dns_resolver.NXDOMAIN:
+                    return False, f"Domenet {domain} finnes ikke"
+                except dns_resolver.NoNameservers:
+                    return False, f"Ingen navneservere svarer for {domain}"
+                except Exception:
+                    pass
+        else:
+            # Fallback: Google DNS-over-HTTPS
+            for rtype in record_types:
+                try:
+                    url = f"https://dns.google/resolve?name={domain}&type={rtype}"
+                    response = requests.get(url, timeout=10)
+                    if response.status_code == 200:
+                        data = response.json()
+                        if data.get("Answer"):
+                            records[rtype] = [a["data"] for a in data["Answer"]]
+                except Exception:
+                    pass
+        
+        if not records:
+            return False, "Ingen DNS-records funnet"
+        
+        return True, records
 
 
 class LoadingIndicator(ctk.CTkFrame):
@@ -361,6 +405,7 @@ class NoridGUI(ctk.CTk):
         self.tabview.add("Entitet")
         self.tabview.add("Navneserver")
         self.tabview.add("Whois")
+        self.tabview.add("DNS")
 
         # Konfigurer hver fane
         self._setup_das_tab()
@@ -368,6 +413,7 @@ class NoridGUI(ctk.CTk):
         self._setup_entity_tab()
         self._setup_nameserver_tab()
         self._setup_whois_tab()
+        self._setup_dns_tab()
 
     def _setup_das_tab(self):
         """Sett opp DAS-fanen - sjekk om domene er ledig"""
@@ -694,6 +740,68 @@ class NoridGUI(ctk.CTk):
             corner_radius=8
         )
         self.whois_result.grid(row=1, column=0, sticky="nsew", padx=24, pady=(0, 24))
+
+    def _setup_dns_tab(self):
+        """Sett opp DNS-fanen"""
+        tab = self.tabview.tab("DNS")
+        tab.grid_columnconfigure(0, weight=1)
+        tab.grid_rowconfigure(1, weight=1)
+
+        # Input-ramme
+        input_frame = ctk.CTkFrame(tab, fg_color="transparent")
+        input_frame.grid(row=0, column=0, pady=(24, 16))
+
+        self.dns_entry = ctk.CTkEntry(
+            input_frame,
+            placeholder_text="Domenenavn (f.eks. norid.no)",
+            width=380,
+            height=44,
+            font=ctk.CTkFont(size=14),
+            fg_color=COLORS["bg_input"],
+            border_color=COLORS["border"],
+            corner_radius=8
+        )
+        self.dns_entry.pack(side="left", padx=(0, 12))
+        self.dns_entry.bind("<Return>", lambda e: self._run_dns())
+
+        self.dns_button = ctk.CTkButton(
+            input_frame,
+            text="Slå opp",
+            command=self._run_dns,
+            width=100,
+            height=44,
+            font=ctk.CTkFont(size=14, weight="bold"),
+            fg_color=COLORS["primary"],
+            hover_color=COLORS["primary_hover"],
+            corner_radius=8
+        )
+        self.dns_button.pack(side="left")
+
+        # JSON checkbox
+        self.dns_json_var = ctk.BooleanVar(value=False)
+        json_check = ctk.CTkCheckBox(
+            input_frame,
+            text="Vis som JSON",
+            variable=self.dns_json_var,
+            font=ctk.CTkFont(size=12),
+            text_color=COLORS["text_muted"],
+            fg_color=COLORS["primary"],
+            hover_color=COLORS["primary_hover"]
+        )
+        json_check.pack(side="left", padx=(16, 0))
+
+        # Resultat
+        self.dns_result = ctk.CTkTextbox(
+            tab,
+            font=ctk.CTkFont(family="SF Mono, Menlo, Monaco, Consolas, monospace", size=12),
+            fg_color=COLORS["bg_input"],
+            text_color=COLORS["text"],
+            border_color=COLORS["border"],
+            border_width=1,
+            corner_radius=8
+        )
+        self.dns_result.grid(row=1, column=0, sticky="nsew", padx=24, pady=(0, 24))
+        self.dns_result.insert("1.0", "Skriv inn et domenenavn for å hente DNS-records\n\nViser: A, AAAA, MX, NS, TXT, CNAME")
 
     def _create_statusbar(self):
         """Opprett statuslinje"""
@@ -1087,6 +1195,50 @@ class NoridGUI(ctk.CTk):
 
         self.whois_result.insert("0.0", result)
         self._set_status(f"Whois-oppslag fullført for {domain}")
+
+    def _run_dns(self):
+        """Kjør DNS-oppslag"""
+        domain = self.dns_entry.get().strip()
+        if not domain:
+            return
+
+        self.dns_button.configure(state="disabled", text="...")
+        self._set_status(f"Henter DNS-records for {domain}...")
+
+        def do_request():
+            success, result = self.client.dns_lookup(domain)
+            self.after(0, lambda: self._show_dns_result(domain, success, result))
+
+        self._run_in_thread(do_request)
+
+    def _show_dns_result(self, domain: str, success: bool, result):
+        """Vis DNS-resultat"""
+        self.dns_button.configure(state="normal", text="Slå opp")
+        self.dns_result.delete("0.0", "end")
+
+        if not success:
+            self.dns_result.insert("0.0", f"Feil: {result}")
+            self._set_status("Feil ved oppslag")
+            return
+
+        if self.dns_json_var.get():
+            import json
+            self.dns_result.insert("0.0", json.dumps(result, indent=2, ensure_ascii=False))
+        else:
+            lines = []
+            lines.append(f"DNS Records for {domain}")
+            lines.append("=" * 50)
+            lines.append("")
+            lines.append(f"{'Type':<8} Record")
+            lines.append("-" * 50)
+            
+            for rtype, values in result.items():
+                for value in values:
+                    lines.append(f"{rtype:<8} {value}")
+            
+            self.dns_result.insert("0.0", "\n".join(lines))
+
+        self._set_status(f"DNS-oppslag fullført for {domain}")
 
 
 def main():

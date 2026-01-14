@@ -16,6 +16,14 @@ import socket
 from flask import Flask, render_template_string, jsonify, request
 import requests
 
+# DNS-oppslag
+try:
+    import dns.resolver as dns_resolver
+    DNS_AVAILABLE = True
+except ImportError:
+    dns_resolver = None
+    DNS_AVAILABLE = False
+
 app = Flask(__name__)
 
 # API-konfigurasjon
@@ -96,6 +104,43 @@ def rdap_check_available(domain: str, use_test: bool = False):
             return {"success": False, "error": f"Feil ({response.status_code})"}
     except Exception as e:
         return {"success": False, "error": str(e)}
+
+
+def dns_lookup(domain: str):
+    """Hent DNS-records for et domene"""
+    records = {}
+    record_types = ['A', 'AAAA', 'MX', 'NS', 'TXT', 'CNAME']
+    
+    if DNS_AVAILABLE and dns_resolver:
+        for rtype in record_types:
+            try:
+                answers = dns_resolver.resolve(domain, rtype)
+                records[rtype] = [str(r) for r in answers]
+            except dns_resolver.NoAnswer:
+                pass
+            except dns_resolver.NXDOMAIN:
+                return {"success": False, "error": f"Domenet {domain} finnes ikke"}
+            except dns_resolver.NoNameservers:
+                return {"success": False, "error": f"Ingen navneservere svarer for {domain}"}
+            except Exception:
+                pass
+    else:
+        # Fallback: Google DNS-over-HTTPS
+        for rtype in record_types:
+            try:
+                url = f"https://dns.google/resolve?name={domain}&type={rtype}"
+                response = requests.get(url, timeout=10)
+                if response.status_code == 200:
+                    data = response.json()
+                    if data.get("Answer"):
+                        records[rtype] = [a["data"] for a in data["Answer"]]
+            except Exception:
+                pass
+    
+    if not records:
+        return {"success": False, "error": "Ingen DNS-records funnet"}
+    
+    return {"success": True, "data": records}
 
 
 # HTML Template
@@ -594,6 +639,7 @@ HTML_TEMPLATE = '''
                 <button class="tab" data-tab="entity">Entitet</button>
                 <button class="tab" data-tab="nameserver">Navneserver</button>
                 <button class="tab" data-tab="whois">Whois</button>
+                <button class="tab" data-tab="dns">DNS</button>
             </div>
 
             <!-- DAS Tab -->
@@ -728,6 +774,34 @@ HTML_TEMPLATE = '''
                     <div class="empty-state">
                         <div class="icon">◎</div>
                         <p>Skriv inn et domenenavn</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- DNS Tab -->
+            <div id="dns" class="tab-content">
+                <div class="card">
+                    <h2 class="card-title">DNS Records</h2>
+                    <p class="card-desc">Hent DNS-records for et domene (A, AAAA, MX, NS, TXT, CNAME)</p>
+                    
+                    <form class="search-form" onsubmit="runDns(event)">
+                        <input type="text" class="search-input" id="dns-input" 
+                               placeholder="norid.no" autocomplete="off">
+                        <button type="submit" class="search-btn" id="dns-btn">Slå opp</button>
+                    </form>
+                    
+                    <div class="options">
+                        <label class="option-label">
+                            <input type="checkbox" id="dns-json">
+                            Vis som JSON
+                        </label>
+                    </div>
+                </div>
+                
+                <div id="dns-result" class="result-box">
+                    <div class="empty-state">
+                        <div class="icon">◎</div>
+                        <p>Skriv inn et domenenavn for å hente DNS-records</p>
                     </div>
                 </div>
             </div>
@@ -1093,6 +1167,61 @@ HTML_TEMPLATE = '''
             btn.textContent = 'Slå opp';
         }
 
+        // DNS
+        async function runDns(e) {
+            e.preventDefault();
+            const domain = document.getElementById('dns-input').value.trim();
+            if (!domain) return;
+            
+            const btn = document.getElementById('dns-btn');
+            const result = document.getElementById('dns-result');
+            const showJson = document.getElementById('dns-json').checked;
+            
+            btn.disabled = true;
+            btn.textContent = '...';
+            result.innerHTML = '';
+            result.classList.add('loading');
+            
+            try {
+                const data = await apiCall('dns', { domain });
+                result.classList.remove('loading');
+                
+                if (data.success) {
+                    if (showJson) {
+                        result.textContent = JSON.stringify(data.data, null, 2);
+                    } else {
+                        result.textContent = formatDns(domain, data.data);
+                    }
+                } else {
+                    result.innerHTML = `<div class="error">${data.error}</div>`;
+                }
+            } catch (err) {
+                result.classList.remove('loading');
+                result.innerHTML = `<div class="error">${err.message}</div>`;
+            }
+            
+            btn.disabled = false;
+            btn.textContent = 'Slå opp';
+        }
+
+        function formatDns(domain, data) {
+            let lines = [];
+            lines.push('─'.repeat(56));
+            lines.push(`  DNS Records for ${domain}`);
+            lines.push('─'.repeat(56));
+            lines.push('');
+            lines.push('  Type     Record');
+            lines.push('  ' + '─'.repeat(48));
+            
+            for (const [rtype, values] of Object.entries(data)) {
+                for (const value of values) {
+                    lines.push(`  ${rtype.padEnd(8)} ${value}`);
+                }
+            }
+            
+            return lines.join('\\n');
+        }
+
         // Enter key support
         document.querySelectorAll('.search-input').forEach(input => {
             input.addEventListener('keypress', e => {
@@ -1216,6 +1345,16 @@ def api_whois():
         return jsonify(rdap_result)
     
     return jsonify(result)
+
+
+@app.route('/api/dns')
+def api_dns():
+    domain = request.args.get('domain', '')
+    
+    if not domain:
+        return jsonify({"success": False, "error": "Mangler domene"})
+    
+    return jsonify(dns_lookup(domain))
 
 
 def main():
