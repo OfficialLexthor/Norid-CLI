@@ -60,7 +60,7 @@ def socket_request(host: str, port: int, query: str):
     """Utfør socket-forespørsel"""
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-            sock.settimeout(30)
+            sock.settimeout(10)
             sock.connect((host, port))
             sock.sendall(f"{query}\r\n".encode("utf-8"))
             
@@ -74,7 +74,27 @@ def socket_request(host: str, port: int, query: str):
             return {"success": True, "data": response.decode("utf-8", errors="replace")}
     except socket.timeout:
         return {"success": False, "error": "Timeout"}
-    except socket.error as e:
+    except socket.error:
+        return {"success": False, "error": "socket_error"}
+
+
+def rdap_check_available(domain: str, use_test: bool = False):
+    """Sjekk om domene er ledig via RDAP HEAD-request"""
+    base_url = RDAP_TEST_URL if use_test else RDAP_BASE_URL
+    url = f"{base_url}/domain/{domain}"
+    
+    try:
+        response = requests.head(url, timeout=10, headers={
+            "User-Agent": "Norid-Web/1.0.0"
+        })
+        
+        if response.status_code == 200:
+            return {"success": True, "data": "registered"}
+        elif response.status_code == 404:
+            return {"success": True, "data": "available"}
+        else:
+            return {"success": False, "error": f"Feil ({response.status_code})"}
+    except Exception as e:
         return {"success": False, "error": str(e)}
 
 
@@ -1100,8 +1120,16 @@ def api_das():
     if not domain:
         return jsonify({"success": False, "error": "Mangler domene"})
     
+    # Prøv socket først, fallback til RDAP
     host = DAS_TEST_HOST if env == 'test' else DAS_HOST
-    return jsonify(socket_request(host, DAS_PORT, domain))
+    result = socket_request(host, DAS_PORT, domain)
+    
+    if not result["success"] and result.get("error") == "socket_error":
+        # Fallback til RDAP HEAD-request
+        rdap_result = rdap_check_available(domain, env == 'test')
+        return jsonify(rdap_result)
+    
+    return jsonify(result)
 
 
 @app.route('/api/domain')
@@ -1156,8 +1184,38 @@ def api_whois():
     if not domain:
         return jsonify({"success": False, "error": "Mangler domene"})
     
+    # Prøv socket først, fallback til RDAP
     host = WHOIS_TEST_HOST if env == 'test' else WHOIS_HOST
-    return jsonify(socket_request(host, WHOIS_PORT, domain))
+    result = socket_request(host, WHOIS_PORT, domain)
+    
+    if not result["success"] and result.get("error") == "socket_error":
+        # Fallback til RDAP og formater som whois-lignende output
+        rdap_result = rdap_request(f"domain/{domain}", env == 'test')
+        if rdap_result["success"]:
+            data = rdap_result["data"]
+            lines = []
+            lines.append(f"Domain Name: {data.get('ldhName', domain)}")
+            
+            for event in data.get('events', []):
+                if event.get('eventAction') == 'registration':
+                    lines.append(f"Created: {event.get('eventDate', '')[:10]}")
+                elif event.get('eventAction') == 'last changed':
+                    lines.append(f"Updated: {event.get('eventDate', '')[:10]}")
+            
+            if data.get('status'):
+                lines.append(f"Status: {', '.join(data['status'])}")
+            
+            for ns in data.get('nameservers', []):
+                lines.append(f"Name Server: {ns.get('ldhName', '')}")
+            
+            for entity in data.get('entities', []):
+                if 'registrar' in entity.get('roles', []):
+                    lines.append(f"Registrar: {entity.get('handle', '')}")
+            
+            return jsonify({"success": True, "data": "\n".join(lines)})
+        return jsonify(rdap_result)
+    
+    return jsonify(result)
 
 
 def main():
